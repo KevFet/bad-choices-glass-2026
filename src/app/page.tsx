@@ -1,66 +1,102 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
+
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import Lobby from '@/components/Lobby';
+import Game from '@/components/Game';
 
 export default function Home() {
+  const [roomCode, setRoomCode] = useState<string | null>(null);
+  const [myId, setMyId] = useState<string | null>(null);
+  const [players, setPlayers] = useState<any[]>([]);
+  const [isHost, setIsHost] = useState(false);
+  const [status, setStatus] = useState<'LOBBY' | 'GAME'>('LOBBY');
+
+  useEffect(() => {
+    if (!roomCode) return;
+
+    // Presence & Real-time channel
+    const channel = supabase.channel(`room:${roomCode}`, {
+      config: {
+        presence: {
+          key: myId!,
+        },
+      },
+    });
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const newState = channel.presenceState();
+        const activePlayers = Object.values(newState).map((v: any) => v[0]);
+        setPlayers(activePlayers);
+      })
+      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+        console.log('join', key, newPresences);
+      })
+      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+        console.log('leave', key, leftPresences);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({
+            id: myId,
+            nickname: localStorage.getItem('nickname') || 'Anonyme',
+            joined_at: new Date().toISOString(),
+          });
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [roomCode, myId]);
+
+  const handleCreate = async (nickname: string) => {
+    const code = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const playerId = crypto.randomUUID();
+
+    // Save to DB
+    await supabase.from('bad_choices_rooms').insert({ code, status: 'LOBBY' });
+    await supabase.from('bad_choices_players').insert({ id: playerId, room_code: code, nickname, is_host: true });
+
+    localStorage.setItem('nickname', nickname);
+    setMyId(playerId);
+    setRoomCode(code);
+    setIsHost(true);
+    setStatus('GAME');
+  };
+
+  const handleJoin = async (code: string, nickname: string) => {
+    // Check if room exists
+    const { data: room } = await supabase.from('bad_choices_rooms').select('*').eq('code', code).single();
+    if (!room) {
+      alert("Salla introuvable !");
+      return;
+    }
+
+    const playerId = crypto.randomUUID();
+    await supabase.from('bad_choices_players').insert({ id: playerId, room_code: code, nickname, is_host: false });
+
+    localStorage.setItem('nickname', nickname);
+    setMyId(playerId);
+    setRoomCode(code);
+    setIsHost(false);
+    setStatus('GAME');
+  };
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <main>
+      {status === 'LOBBY' ? (
+        <Lobby onCreate={handleCreate} onJoin={handleJoin} />
+      ) : (
+        <Game
+          roomCode={roomCode!}
+          myId={myId!}
+          players={players}
+          isHost={isHost}
+          onLeave={() => setStatus('LOBBY')}
         />
-        <div className={styles.intro}>
-          <h1>To get started, edit the page.tsx file.</h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      )}
+    </main>
   );
 }
