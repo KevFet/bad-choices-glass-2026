@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Users, X, Info } from 'lucide-react';
@@ -32,6 +32,7 @@ interface GameProps {
 type Lang = 'fr' | 'en' | 'es';
 
 export default function Game({ roomCode, myId, players, isHost, onLeave }: GameProps) {
+    const channelRef = useRef<any>(null);
     const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
     const [allVotes, setAllVotes] = useState<Record<string, number>>({});
@@ -54,27 +55,51 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
             .on('broadcast', { event: 'show_results' }, (payload) => {
                 setAllVotes(payload.votes);
                 setShowResults(true);
-                const counts = payload.votes;
-                const winnerId = Object.keys(counts).reduce((a, b) => (counts[a] || 0) > (counts[b] || 0) ? a : b, '');
+                const winnerId = Object.keys(payload.votes).reduce((a, b) =>
+                    (payload.votes[a] || 0) > (payload.votes[b] || 0) ? a : b, ''
+                );
                 const winner = players.find(p => p.id === winnerId);
                 setTimeout(() => setRevealWinner(winner || null), 2000);
             })
-            .subscribe();
+            .subscribe(async (status) => {
+                if (status === 'SUBSCRIBED') {
+                    // Sync initial question if missed broadcast
+                    const { data: room } = await supabase.from('bad_choices_rooms')
+                        .select('current_question_id')
+                        .eq('code', roomCode)
+                        .single();
+
+                    if (room?.current_question_id) {
+                        const { data: q } = await supabase.from('bad_choices_questions')
+                            .select('*')
+                            .eq('id', room.current_question_id)
+                            .single();
+                        if (q) setCurrentQuestion(q);
+                    }
+                }
+            });
+
+        channelRef.current = channel;
 
         if (isHost && !currentQuestion) fetchNextQuestion();
+
         return () => { supabase.removeChannel(channel); };
-    }, [roomCode, isHost, players]);
+    }, [roomCode, isHost]);
 
     const fetchNextQuestion = async () => {
         const { data: questions } = await supabase.from('bad_choices_questions').select('*');
         if (questions && questions.length > 0) {
             const randomQ = questions[Math.floor(Math.random() * questions.length)];
             setCurrentQuestion(randomQ);
-            await supabase.channel(`room:${roomCode}`).send({
-                type: 'broadcast',
-                event: 'next_question',
-                question: randomQ,
-            });
+
+            if (channelRef.current) {
+                await channelRef.current.send({
+                    type: 'broadcast',
+                    event: 'next_question',
+                    question: randomQ,
+                });
+            }
+
             await supabase.from('bad_choices_rooms').update({ current_question_id: randomQ.id }).eq('code', roomCode);
         }
     };
@@ -83,12 +108,13 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
         if (voted || showResults) return;
         setVoted(true);
         setSelectedPlayerId(playerId);
-        await supabase.from('bad_choices_votes').insert({
+
+        await supabase.from('bad_choices_votes').upsert({
             room_code: roomCode,
             question_id: currentQuestion?.id,
             voter_id: myId,
             voted_for_id: playerId,
-        });
+        }, { onConflict: 'room_code,question_id,voter_id' });
     };
 
     const triggerResults = async () => {
@@ -96,10 +122,18 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
             .select('voted_for_id')
             .match({ room_code: roomCode, question_id: currentQuestion?.id });
 
+        const counts: Record<string, number> = {};
         if (votes) {
-            const counts: Record<string, number> = {};
             votes.forEach(v => counts[v.voted_for_id] = (counts[v.voted_for_id] || 0) + 1);
-            await supabase.channel(`room:${roomCode}`).send({ type: 'broadcast', event: 'show_results', votes: counts });
+        }
+
+        // Even if zero votes, broadcast the event to clear UI
+        if (channelRef.current) {
+            await channelRef.current.send({
+                type: 'broadcast',
+                event: 'show_results',
+                votes: counts
+            });
         }
     };
 
