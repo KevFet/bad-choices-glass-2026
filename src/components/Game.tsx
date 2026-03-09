@@ -112,7 +112,7 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
 
         channelRef.current = channel;
 
-        if (isHost && !currentQuestion) fetchNextQuestion();
+        // Removed automatic fetchNextQuestion on mount - wait for startGame click
 
         return () => {
             supabase.removeChannel(channel);
@@ -120,9 +120,9 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
         };
     }, [roomCode, isHost, players.length]);
 
-    // Automatic results trigger for host
+    // Automatic results trigger for host - only in PLAYING state
     useEffect(() => {
-        if (isHost && !showResults && currentQuestion && voterIds.length >= players.length && players.length > 0) {
+        if (isHost && roomStatus === 'PLAYING' && !showResults && currentQuestion && voterIds.length >= players.length && players.length > 0) {
             // Small delay for fluidity
             const timer = setTimeout(() => triggerResults(), 800);
             return () => clearTimeout(timer);
@@ -242,8 +242,12 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                     >
-                        <div className="text-center space-y-6">
-                            <h2 className="title-magazine !text-7xl md:!text-[10rem] italic opacity-10 leading-none">Salle d'attente</h2>
+                        <div className="text-center space-y-8">
+                            <h2 className="title-magazine !text-7xl md:!text-[8rem] italic opacity-30 leading-none">Salle d&apos;attente</h2>
+                            <div className="flex flex-col items-center gap-2">
+                                <p className="text-[10px] font-black uppercase tracking-[0.8em] opacity-40">Code de la Séance</p>
+                                <div className="text-6xl md:text-9xl font-black tracking-[0.2em] text-white py-4">{roomCode}</div>
+                            </div>
                             <p className="text-[10px] font-black uppercase tracking-[0.8em] opacity-40">Synchronisation des Sujets ({players.length})</p>
                         </div>
 
