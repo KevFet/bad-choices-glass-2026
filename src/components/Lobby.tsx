@@ -13,17 +13,6 @@ export default function Lobby({ onJoin, onCreate }: LobbyProps) {
     const [roomCode, setRoomCode] = useState('');
     const [view, setView] = useState<'root' | 'join' | 'create'>('root');
 
-    const containerVariants = {
-        hidden: { opacity: 0, scale: 0.98, y: 30 },
-        visible: {
-            opacity: 1,
-            scale: 1,
-            y: 0,
-            transition: { duration: 1, ease: "circOut" }
-        },
-        exit: { opacity: 0, scale: 1.02, y: -20, filter: "blur(20px)" }
-    };
-
     return (
         <div className="flex flex-col items-center justify-center min-h-screen w-full px-6 py-12 relative overflow-hidden">
 
@@ -32,7 +21,7 @@ export default function Lobby({ onJoin, onCreate }: LobbyProps) {
                 className="mb-16 md:mb-24 text-center z-20"
                 initial={{ opacity: 0, y: -50 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 1.2, ease: "easeOut" }}
+                transition={{ duration: 1.2 }}
             >
                 <span className="block text-[11px] uppercase font-black tracking-[0.7em] opacity-30 mb-3">Experimental Protocol / 2026-X</span>
                 <h1 className="title-magazine text-center !text-8xl md:!text-[12rem]">
@@ -45,10 +34,10 @@ export default function Lobby({ onJoin, onCreate }: LobbyProps) {
                 {view === 'root' && (
                     <motion.div
                         key="root"
-                        variants={containerVariants}
-                        initial="hidden"
-                        animate="visible"
-                        exit="exit"
+                        initial={{ opacity: 0, scale: 0.98, y: 30 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 1.02, y: -20, filter: "blur(20px)" }}
+                        transition={{ duration: 0.8 }}
                         className="w-full max-w-2xl glass-bento p-10 md:p-16 flex flex-col items-center justify-center gap-10 z-20"
                     >
                         <div className="w-full flex flex-col items-center gap-6">
@@ -89,10 +78,10 @@ export default function Lobby({ onJoin, onCreate }: LobbyProps) {
                 {view === 'join' && (
                     <motion.div
                         key="join"
-                        variants={containerVariants}
-                        initial="hidden"
-                        animate="visible"
-                        exit="exit"
+                        initial={{ opacity: 0, scale: 0.98, y: 30 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 1.02, y: -20 }}
+                        transition={{ duration: 0.8 }}
                         className="w-full max-w-2xl glass-bento p-16 flex flex-col items-center space-y-12 z-20"
                     >
                         <div className="text-center space-y-3">
@@ -130,10 +119,10 @@ export default function Lobby({ onJoin, onCreate }: LobbyProps) {
                 {view === 'create' && (
                     <motion.div
                         key="create"
-                        variants={containerVariants}
-                        initial="hidden"
-                        animate="visible"
-                        exit="exit"
+                        initial={{ opacity: 0, scale: 0.98, y: 30 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 1.02, y: -20 }}
+                        transition={{ duration: 0.8 }}
                         className="w-full max-w-2xl glass-bento p-16 text-center space-y-12 z-20"
                     >
                         <div className="space-y-4">
