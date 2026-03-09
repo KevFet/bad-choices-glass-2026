@@ -41,6 +41,7 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
     const [voted, setVoted] = useState(false);
     const [lang, setLang] = useState<Lang>('fr');
     const [showRules, setShowRules] = useState(false);
+    const [voterIds, setVoterIds] = useState<string[]>([]);
 
     useEffect(() => {
         const channel = supabase.channel(`room:${roomCode}`)
@@ -63,7 +64,7 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
             })
             .subscribe(async (status) => {
                 if (status === 'SUBSCRIBED') {
-                    // Sync initial question if missed broadcast
+                    // Sync initial question
                     const { data: room } = await supabase.from('bad_choices_rooms')
                         .select('current_question_id')
                         .eq('code', roomCode)
@@ -75,22 +76,54 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                             .eq('id', room.current_question_id)
                             .single();
                         if (q) setCurrentQuestion(q);
+
+                        // Also sync existing votes for this question
+                        const { data: existingVotes } = await supabase.from('bad_choices_votes')
+                            .select('voter_id')
+                            .match({ room_code: roomCode, question_id: room.current_question_id });
+                        if (existingVotes) setVoterIds(existingVotes.map(v => v.voter_id));
                     }
                 }
             });
+
+        // 3. Database Vote Listener (Realtime)
+        const voteChannel = supabase.channel(`votes:${roomCode}`)
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'bad_choices_votes',
+                filter: `room_code=eq.${roomCode}`
+            }, (payload) => {
+                const newVoterId = payload.new.voter_id;
+                setVoterIds(prev => prev.includes(newVoterId) ? prev : [...prev, newVoterId]);
+            })
+            .subscribe();
 
         channelRef.current = channel;
 
         if (isHost && !currentQuestion) fetchNextQuestion();
 
-        return () => { supabase.removeChannel(channel); };
-    }, [roomCode, isHost]);
+        return () => {
+            supabase.removeChannel(channel);
+            supabase.removeChannel(voteChannel);
+        };
+    }, [roomCode, isHost, players.length]); // Re-sync if player count changes
+
+    // Automatic results trigger for host
+    useEffect(() => {
+        if (isHost && !showResults && currentQuestion && voterIds.length >= players.length && players.length > 0) {
+            // Small delay for fluidity
+            const timer = setTimeout(() => triggerResults(), 800);
+            return () => clearTimeout(timer);
+        }
+    }, [voterIds.length, players.length, isHost, showResults, currentQuestion]);
 
     const fetchNextQuestion = async () => {
         const { data: questions } = await supabase.from('bad_choices_questions').select('*');
         if (questions && questions.length > 0) {
             const randomQ = questions[Math.floor(Math.random() * questions.length)];
             setCurrentQuestion(randomQ);
+            setVoterIds([]); // Local reset
 
             if (channelRef.current) {
                 await channelRef.current.send({
@@ -191,6 +224,7 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                     const voteCount = allVotes[player.id] || 0;
                     const percentage = players.length > 0 ? (voteCount / players.length) * 100 : 0;
                     const isSelected = selectedPlayerId === player.id;
+                    const hasVoted = voterIds.includes(player.id);
 
                     return (
                         <motion.div
@@ -214,6 +248,15 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                                 {player.nickname?.charAt(0).toUpperCase()}
                                 {showResults && (
                                     <div className="absolute -bottom-2 glass-card px-3 py-1 text-[10px] font-black italic">{Math.round(percentage)}%</div>
+                                )}
+                                {!showResults && hasVoted && (
+                                    <motion.div
+                                        initial={{ scale: 0 }}
+                                        animate={{ scale: 1 }}
+                                        className="absolute -top-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center border-2 border-black"
+                                    >
+                                        <div className="w-2 h-2 bg-black rounded-full" />
+                                    </motion.div>
                                 )}
                             </div>
                             <span className="relative z-10 text-[10px] md:text-xs font-black uppercase tracking-[0.4em] opacity-40 group-hover:opacity-100">
