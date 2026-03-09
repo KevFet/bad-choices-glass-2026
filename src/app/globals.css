@@ -3,50 +3,49 @@
 @tailwind utilities;
 
 :root {
-  --background: #030014;
-  --black: #050505;
-  --indigo: #4F46E5;
-  --magenta: #701A75;
-  --font-geist: 'Geist', 'Inter', system-ui, sans-serif;
+  --background: #020617;
+  --mesh-1: #1E1B4B;
+  --mesh-2: #701A75;
+  --font-playfair: var(--font-playfair), serif;
+  --font-geist: var(--font-geist), sans-serif;
 }
 
 @layer base {
   body {
-    @apply bg-background text-white font-geist overflow-x-hidden min-h-[100dvh] selection:bg-indigo/30;
+    @apply bg-background text-white font-geist overflow-x-hidden min-h-[100dvh];
     -webkit-tap-highlight-color: transparent;
   }
 }
 
-/* Deep Liquid Mesh Background */
+/* Magma Liquid Background */
 .deep-liquid {
   position: fixed;
   inset: 0;
   z-index: -1;
   background-color: var(--background);
   background-image:
-    radial-gradient(at 10% 20%, var(--indigo) 0px, transparent 40%),
-    radial-gradient(at 80% 10%, var(--magenta) 0px, transparent 40%),
-    radial-gradient(at 30% 60%, var(--indigo) 0px, transparent 30%),
-    radial-gradient(at 90% 80%, var(--magenta) 0px, transparent 40%);
-  filter: blur(120px) saturate(1.5);
-  animation: liquid-drift 30s ease infinite alternate;
+    radial-gradient(at 10% 20%, var(--mesh-1) 0px, transparent 40%),
+    radial-gradient(at 80% 10%, var(--mesh-2) 0px, transparent 40%),
+    radial-gradient(at 30% 60%, var(--mesh-1) 0px, transparent 30%),
+    radial-gradient(at 90% 80%, var(--mesh-2) 0px, transparent 40%);
+  filter: blur(140px) saturate(2);
+  animation: magma-flow 40s ease-in-out infinite alternate;
 }
 
-@keyframes liquid-drift {
+@keyframes magma-flow {
   0% {
     transform: scale(1) translate(0, 0);
   }
 
   50% {
-    transform: scale(1.1) translate(-2%, 2%);
+    transform: scale(1.2) translate(-5%, 5%);
   }
 
   100% {
-    transform: scale(1.05) translate(1%, -1%);
+    transform: scale(1.1) translate(5%, -2%);
   }
 }
 
-/* 5% Noise overlay */
 .noise-overlay {
   position: fixed;
   inset: 0;
@@ -57,92 +56,43 @@
   mix-blend-mode: soft-light;
 }
 
-/* Elite Glassmorphism System */
-.glass-elite {
-  @apply bg-white/3 backdrop-blur-[40px] rounded-3xl;
-  border: 0.5px solid rgba(255, 255, 255, 0.1);
+/* High-End Glassmorphism */
+.glass-bento {
+  @apply bg-white/5 backdrop-blur-[40px] rounded-3xl border-[0.5px] border-white/10;
   box-shadow:
-    0 4px 30px rgba(0, 0, 0, 0.1),
+    0 25px 50px -12px rgba(0, 0, 0, 0.5),
     inset 0 0 1px 1px rgba(255, 255, 255, 0.05);
-  position: relative;
-  overflow: hidden;
 }
 
-/* Fiber-Thin Light Borders (Reflector) */
-.glass-elite::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  padding: 0.5px;
-  border-radius: inherit;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 40%, transparent 60%, rgba(255, 255, 255, 0.05) 100%);
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-  -webkit-mask-composite: xor;
-  pointer-events: none;
+.glass-card {
+  @apply bg-white/3 backdrop-blur-2xl rounded-2xl border-[0.5px] border-white/10;
+  box-shadow: 0 0 30px rgba(79, 70, 229, 0.1);
 }
 
-/* 2026 Elite Button */
-.btn-elite {
-  @apply flex items-center justify-center font-black uppercase tracking-widest text-[10px] py-4 px-8 rounded-2xl transition-all duration-300 relative overflow-hidden;
-  background: rgba(255, 255, 255, 0.05);
+.btn-frosted {
+  @apply h-16 w-full max-w-md flex items-center justify-center font-black uppercase tracking-widest text-xs rounded-2xl transition-all duration-500 overflow-hidden relative;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
   border: 0.5px solid rgba(255, 255, 255, 0.1);
-  color: white;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
 
-.btn-elite::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at var(--x, 50%) var(--y, 50%), rgba(255, 255, 255, 0.1) 0%, transparent 100%);
-  opacity: 0;
-  transition: opacity 0.3s;
+.btn-frosted:hover {
+  @apply scale-105 bg-white/10;
+  box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.1), 0 20px 40px rgba(0, 0, 0, 0.4);
 }
 
-.btn-elite:hover::after {
-  opacity: 1;
+.title-magazine {
+  font-family: var(--font-playfair);
+  @apply text-6xl md:text-9xl font-black italic tracking-tighter leading-none text-center selection:bg-indigo-300;
 }
 
-.btn-elite:hover {
-  @apply scale-[1.02] bg-white/10;
-  box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.05);
+.input-glow {
+  @apply w-full max-w-md bg-white/5 border-[0.5px] border-white/10 transition-all duration-500;
+  box-shadow: 0 0 0 rgba(79, 70, 229, 0);
 }
 
-.btn-solid {
-  @apply bg-white text-black;
-}
-
-.btn-solid:hover {
-  @apply bg-white/90 scale-[1.02];
-}
-
-/* Bento Grid System */
-.bento-12 {
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: 1rem;
-}
-
-/* Typography Elite */
-.title-gigantic {
-  @apply text-6xl md:text-9xl font-black tracking-tighter leading-[0.85] uppercase selection:text-indigo-400;
-}
-
-/* HUD Overlay Elements */
-.hud-glass {
-  @apply glass-elite py-2 px-4 flex items-center gap-2;
-  border-radius: 9999px;
-}
-
-/* Input Elite */
-.input-elite {
-  @apply bg-white/3 border-[0.5px] border-white/10 rounded-2xl p-4 w-full outline-none transition-all duration-300;
-  @apply focus:bg-white/5 focus:border-white/20 focus:scale-[1.01];
-}
-
-/* Animations Framer-Power */
-.liquid-loader {
-  @apply absolute bottom-0 left-0 w-full bg-gradient-to-t from-indigo to-transparent transition-all;
-  box-shadow: 0 -20px 40px -10px theme('colors.indigo');
+.input-glow:focus {
+  @apply scale-105 border-indigo-500/50 bg-white/10;
+  box-shadow: 0 0 40px rgba(79, 70, 229, 0.2);
 }
