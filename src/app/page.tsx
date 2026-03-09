@@ -15,6 +15,15 @@ export default function Home() {
   useEffect(() => {
     if (!roomCode) return;
 
+    // Check if the room actually exists
+    const verifyRoom = async () => {
+      const { data } = await supabase.from('bad_choices_rooms').select('code').eq('code', roomCode).single();
+      if (!data) {
+        handleLeave();
+      }
+    };
+    verifyRoom();
+
     const channel = supabase.channel(`room:${roomCode}`, {
       config: {
         presence: {
