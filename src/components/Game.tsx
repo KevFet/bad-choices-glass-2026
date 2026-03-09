@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Share2, Users, HelpCircle, Trophy, X, Globe, Copy, Check } from 'lucide-react';
+import { motion, AnimatePresence, useSpring, useMotionValue, useTransform } from 'framer-motion';
+import { Share2, Users, HelpCircle, Trophy, X, Globe, Copy, Check, Info, Award } from 'lucide-react';
 
 interface Player {
     id: string;
@@ -34,7 +34,7 @@ type Lang = 'fr' | 'en' | 'es';
 export default function Game({ roomCode, myId, players, isHost, onLeave }: GameProps) {
     const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
     const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-    const [allVotes, setAllVotes] = useState<any>([]);
+    const [allVotes, setAllVotes] = useState<Record<string, number>>({});
     const [showResults, setShowResults] = useState(false);
     const [revealWinner, setRevealWinner] = useState<Player | null>(null);
     const [voted, setVoted] = useState(false);
@@ -42,7 +42,6 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
     const [showRules, setShowRules] = useState(false);
     const [copied, setCopied] = useState(false);
 
-    // Sync state with Supabase Realtime
     useEffect(() => {
         const channel = supabase.channel(`room:${roomCode}`)
             .on('broadcast', { event: 'next_question' }, (payload) => {
@@ -51,29 +50,25 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                 setVoted(false);
                 setSelectedPlayerId(null);
                 setRevealWinner(null);
-                setAllVotes([]);
+                setAllVotes({});
             })
             .on('broadcast', { event: 'show_results' }, (payload) => {
                 setAllVotes(payload.votes);
                 setShowResults(true);
-
-                // Find winner locally
                 const counts = payload.votes;
                 const winnerId = Object.keys(counts).reduce((a, b) => (counts[a] || 0) > (counts[b] || 0) ? a : b, '');
                 const winner = players.find(p => p.id === winnerId);
-                setTimeout(() => setRevealWinner(winner || null), 2000);
+                setTimeout(() => setRevealWinner(winner || null), 1500);
             })
             .on('broadcast', { event: 'vibrate_all' }, () => {
-                if (window.navigator?.vibrate) window.navigator.vibrate([50, 50, 50]);
+                if (window.navigator?.vibrate) window.navigator.vibrate([10, 30, 10]);
             })
             .subscribe();
 
         if (isHost && !currentQuestion) fetchNextQuestion();
 
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [roomCode, isHost]);
+        return () => { supabase.removeChannel(channel); };
+    }, [roomCode, isHost, players]);
 
     const fetchNextQuestion = async () => {
         const { data: questions } = await supabase.from('bad_choices_questions').select('*');
@@ -93,8 +88,7 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
         if (voted || showResults) return;
         setVoted(true);
         setSelectedPlayerId(playerId);
-
-        if (window.navigator?.vibrate) window.navigator.vibrate(50);
+        if (window.navigator?.vibrate) window.navigator.vibrate(20);
 
         await supabase.from('bad_choices_votes').insert({
             room_code: roomCode,
@@ -118,205 +112,223 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                 event: 'show_results',
                 votes: counts,
             });
-
-            // Also trigger a vibration for everyone
-            await supabase.channel(`room:${roomCode}`).send({
-                type: 'broadcast',
-                event: 'vibrate_all',
-            });
+            await supabase.channel(`room:${roomCode}`).send({ type: 'broadcast', event: 'vibrate_all' });
         }
     };
 
-    const copyRoomCode = () => {
-        navigator.clipboard.writeText(roomCode);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-    };
-
     return (
-        <div className="flex flex-col items-center min-h-[100dvh] p-4 md:p-6 max-w-4xl mx-auto pt-24 pb-12 overflow-hidden">
+        <div className="flex flex-col items-center min-h-[100dvh] pt-32 pb-24 px-4 md:px-12 max-w-[1400px] mx-auto overflow-x-hidden w-full selection:bg-indigo-300">
 
-            {/* HUD High-End */}
-            <div className="fixed top-0 left-0 right-0 p-4 flex justify-between items-center z-[60] safe-top">
+            {/* HUD - Floating Command Deck */}
+            <div className="fixed top-8 left-1/2 -translate-x-1/2 flex items-center gap-3 z-[100] w-full max-w-[95%] justify-between md:justify-center">
                 <div className="flex gap-2">
-                    <motion.div
-                        className="glass flex items-center px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest gap-2"
-                        whileHover={{ scale: 1.05 }}
-                    >
-                        <Users size={12} className="text-cyan-400" />
-                        <span className="opacity-60">PLAYERS:</span> {players.length}
-                    </motion.div>
-                    <motion.div
-                        className="glass flex items-center px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest gap-2 cursor-pointer"
-                        onClick={copyRoomCode}
-                        whileTap={{ scale: 0.95 }}
-                    >
-                        {copied ? <Check size={12} className="text-green-400" /> : <Copy size={12} className="text-magenta-400" />}
-                        <span className="opacity-60">CODE:</span> {roomCode}
+                    <motion.div className="hud-glass" whileHover={{ scale: 1.05 }}>
+                        <Users size={14} className="text-white/40" />
+                        <span className="text-[10px] font-black tracking-widest opacity-30">ROOM /</span>
+                        <span className="text-[10px] font-black">{roomCode}</span>
                     </motion.div>
                 </div>
 
                 <div className="flex gap-2">
-                    <motion.button
-                        className="glass !p-2 rounded-full text-white/60 hover:text-white"
-                        onClick={() => setShowRules(true)}
-                        whileHover={{ rotate: 15 }}
-                    >
-                        <HelpCircle size={18} />
-                    </motion.button>
-                    <div className="glass flex items-center p-1 rounded-full gap-1">
+                    <div className="glass-elite !p-1 !rounded-full hidden md:flex">
                         {(['fr', 'en', 'es'] as Lang[]).map(l => (
                             <button
                                 key={l}
                                 onClick={() => setLang(l)}
-                                className={`text-[9px] font-bold px-2 py-1 rounded-full transition-all ${lang === l ? 'bg-white text-black' : 'text-white/40'}`}
+                                className={`text-[8px] font-black px-4 py-2 rounded-full transition-all ${lang === l ? 'bg-white text-black' : 'text-white/20 hover:text-white/40'}`}
                             >
                                 {l.toUpperCase()}
                             </button>
                         ))}
                     </div>
+                    <motion.button
+                        className="hud-glass !p-3"
+                        onClick={() => setShowRules(true)}
+                        whileHover={{ rotate: 15 }}
+                    >
+                        <Info size={18} />
+                    </motion.button>
                 </div>
             </div>
 
-            {/* Main Question Display */}
+            {/* Main Question - Bento Hero */}
             <AnimatePresence mode="wait">
                 <motion.div
                     key={currentQuestion?.id}
-                    className="glass p-8 md:p-14 rounded-[40px] w-full text-center mb-10 shadow-2xl relative overflow-hidden flex flex-col items-center justify-center min-h-[250px] border-white/5"
-                    initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                    initial={{ opacity: 0, scale: 0.98, y: 10 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 1.05, filter: "blur(20px)" }}
-                    transition={{ type: "spring", damping: 20 }}
+                    exit={{ opacity: 0, scale: 1.02, filter: "blur(20px)" }}
+                    transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+                    className="w-full grid grid-cols-12 gap-6 mb-12"
                 >
-                    <div className="absolute top-4 left-6 text-white/5 text-5xl md:text-7xl font-black italic select-none pointer-events-none">CHOICE</div>
-                    <motion.h2
-                        className="text-2xl md:text-5xl font-black mb-6 leading-[1.1] tracking-tight"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2 }}
-                    >
-                        {currentQuestion?.[lang] || '...'}
-                    </motion.h2>
-                    <div className="h-1 w-20 bg-gradient-to-r from-cyan-500 to-magenta-500 rounded-full opacity-50" />
+                    <div className="col-span-12 lg:col-span-8 glass-elite p-12 md:p-20 flex flex-col items-center justify-center min-h-[400px] relative overflow-hidden">
+                        <div className="absolute top-8 left-8 text-[10px] font-black tracking-[0.5em] opacity-10 uppercase">Social Experiment #BC26</div>
+                        <motion.h2
+                            className="title-gigantic text-center max-w-4xl"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 }}
+                        >
+                            {currentQuestion?.[lang] || '...'}
+                        </motion.h2>
+                        <div className="absolute bottom-8 right-8 flex gap-1 opacity-20">
+                            <div className="w-1 h-1 rounded-full bg-white" />
+                            <div className="w-1 h-1 rounded-full bg-white" />
+                            <div className="w-8 h-1 rounded-full bg-white" />
+                        </div>
+                    </div>
+
+                    <div className="hidden lg:flex col-span-4 glass-elite p-12 flex-col justify-between">
+                        <div className="space-y-4">
+                            <Globe size={40} className="text-white/10" />
+                            <h3 className="text-2xl font-black uppercase tracking-tighter">ANALYSE EN COURS</h3>
+                            <p className="text-white/30 text-xs leading-relaxed font-medium">Les données de vote sont cryptées et traitées en temps réel par les serveurs Supabase 2026. Répondez avec honnêteté brutale.</p>
+                        </div>
+                        <div className="space-y-1">
+                            <div className="text-[10px] font-black opacity-30 uppercase">Statut</div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                                <span className="text-[10px] font-black uppercase tracking-widest">LIVE SYNC</span>
+                            </div>
+                        </div>
+                    </div>
                 </motion.div>
             </AnimatePresence>
 
-            {/* Players Bento Grid */}
-            <div className="bento-grid max-w-2xl mx-auto w-full px-2">
+            {/* Players - Bento Grid 12 */}
+            <div className="grid grid-cols-12 gap-4 w-full">
                 {players.map((player, idx) => {
                     const voteCount = allVotes[player.id] || 0;
                     const percentage = players.length > 0 ? (voteCount / players.length) * 100 : 0;
-                    const isWinner = revealWinner?.id === player.id;
                     const isSelected = selectedPlayerId === player.id;
+
+                    // Asymmetric sizes logic
+                    const isLarge = idx === 0 || idx === 5;
+                    const spanClass = isLarge ? "col-span-12 md:col-span-6 lg:col-span-4" : "col-span-6 md:col-span-3 lg:col-span-2";
 
                     return (
                         <motion.div
                             layout
                             key={player.id}
                             onClick={() => handleVote(player.id)}
-                            className={`bento-item glass glass-interactive relative group ${isSelected ? 'active neon-halo' : ''} ${isWinner ? 'glow-magenta scale-105 z-10' : ''}`}
-                            initial={{ opacity: 0, scale: 0.8 }}
+                            initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
-                            transition={{ delay: idx * 0.05, type: "spring" }}
-                            whileTap={{ scale: 0.92 }}
+                            transition={{ delay: 0.1 * idx, duration: 0.5 }}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.95, transition: { type: "spring", stiffness: 400, damping: 10 } }}
+                            className={`${spanClass} h-[180px] md:h-[240px] glass-elite cursor-pointer group flex flex-col items-center justify-center gap-4 ${isSelected ? 'border-indigo-500/50 bg-indigo-500/5' : ''}`}
                         >
                             <AnimatePresence>
                                 {showResults && (
                                     <motion.div
-                                        className="liquid-progress"
+                                        className="liquid-loader"
                                         initial={{ height: 0 }}
                                         animate={{ height: `${percentage}%` }}
+                                        transition={{ type: "spring", bounce: 0, duration: 2, delay: 0.2 }}
                                     />
                                 )}
                             </AnimatePresence>
 
-                            <div className="relative z-20 flex flex-col items-center">
-                                <div className={`text-2xl mb-2 h-14 w-14 rounded-full flex items-center justify-center backdrop-blur-3xl transition-all duration-500 ${isWinner ? 'bg-magenta-500/20' : 'bg-white/5 group-hover:bg-white/10'}`}>
-                                    {player.nickname?.charAt(0).toUpperCase() || '?'}
+                            <div className="relative z-10 flex flex-col items-center transition-transform duration-500 group-hover:-translate-y-2">
+                                <div className={`w-16 h-16 md:w-24 md:h-24 rounded-full flex items-center justify-center glass-elite text-3xl font-black transition-all ${isSelected ? 'scale-110 !border-white/40' : 'group-hover:border-white/20'}`}>
+                                    {player.nickname?.charAt(0).toUpperCase()}
                                 </div>
-                                <span className={`text-[10px] font-black uppercase tracking-widest text-center transition-opacity ${showResults && percentage < 20 ? 'opacity-40' : 'opacity-100'}`}>
-                                    {player.nickname}
-                                </span>
-
-                                {showResults && (
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 5 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        className="mt-1 font-black text-xl text-white"
-                                    >
-                                        {voteCount > 0 ? `${Math.round(percentage)}%` : '0%'}
-                                    </motion.div>
-                                )}
+                                <div className="mt-4 flex flex-col items-center">
+                                    <span className="text-[10px] font-black uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">
+                                        {player.nickname}
+                                    </span>
+                                    {showResults && (
+                                        <motion.span
+                                            initial={{ opacity: 0, y: 5 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="text-2xl font-black mt-1"
+                                        >
+                                            {Math.round(percentage)}%
+                                        </motion.span>
+                                    )}
+                                </div>
                             </div>
-
-                            {isWinner && <div className="glitch-lines" />}
                         </motion.div>
                     );
                 })}
             </div>
 
-            {/* Action Area */}
-            <div className="mt-12 w-full max-w-xs space-y-4">
-                {isHost && !showResults && !voted && players.length > 1 && (
-                    <motion.button
-                        className="w-full bg-white/10 text-white border border-white/20 uppercase text-xs font-black tracking-widest py-4 rounded-2xl"
-                        onClick={triggerResults}
-                        whileHover={{ scale: 1.02 }}
+            {/* Host Action Center */}
+            <AnimatePresence>
+                {isHost && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 50 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="fixed bottom-12 left-1/2 -translate-x-1/2 w-full max-w-xs z-50 px-4"
                     >
-                        TERMINER LES VOTES
-                    </motion.button>
+                        {!showResults ? (
+                            <button
+                                onClick={triggerResults}
+                                className="btn-elite btn-solid !h-20 w-full !rounded-[40px] shadow-[0_20px_60px_-15px_rgba(255,255,255,0.3)]"
+                            >
+                                RÉVÉLER L'ANALYSE
+                            </button>
+                        ) : (
+                            <button
+                                onClick={fetchNextQuestion}
+                                className="btn-elite btn-solid !h-20 w-full !rounded-[40px] !bg-indigo-500 !text-white !border-indigo-400/50 shadow-[0_20px_60px_-15px_rgba(79,70,229,0.5)]"
+                            >
+                                EXPÉRIENCE SUIVANTE
+                            </button>
+                        )}
+                    </motion.div>
                 )}
+            </AnimatePresence>
 
-                {isHost && showResults && (
-                    <motion.button
-                        className="w-full bg-white text-black uppercase text-xs font-black tracking-widest py-5 rounded-2xl shadow-2xl"
-                        onClick={fetchNextQuestion}
-                        initial={{ scale: 0.9 }}
-                        animate={{ scale: 1 }}
-                        whileHover={{ scale: 1.05 }}
-                    >
-                        QUESTION SUIVANTE
-                    </motion.button>
-                )}
-            </div>
-
-            {/* Rules Modal */}
+            {/* Rules Modal - Elite Overlay */}
             <AnimatePresence>
                 {showRules && (
                     <motion.div
-                        className="fixed inset-0 z-[100] flex items-center justify-center p-6 modal-overlay"
+                        className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/80 backdrop-blur-xl"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                     >
                         <motion.div
-                            className="glass p-10 rounded-[40px] max-w-sm w-full relative border-white/10"
+                            className="glass-elite p-12 md:p-16 max-w-lg w-full relative"
                             initial={{ scale: 0.9, y: 20 }}
                             animate={{ scale: 1, y: 0 }}
                             exit={{ scale: 0.9, y: 20 }}
                         >
                             <button
-                                className="absolute top-6 right-6 p-2 text-white/40 hover:text-white"
+                                className="absolute top-8 right-8 text-white/20 hover:text-white"
                                 onClick={() => setShowRules(false)}
                             >
-                                <X size={20} />
+                                <X size={24} />
                             </button>
 
-                            <div className="flex flex-col items-center text-center">
-                                <div className="bg-cyan-500/20 p-4 rounded-3xl mb-6">
-                                    <HelpCircle size={40} className="text-cyan-400" />
+                            <div className="space-y-8">
+                                <div className="space-y-2">
+                                    <h3 className="text-4xl font-black tracking-tighter uppercase">RÈGLES DU JEU</h3>
+                                    <div className="w-12 h-1 bg-white/10" />
                                 </div>
-                                <h3 className="text-3xl font-black mb-4 uppercase tracking-tight">RÈGLES</h3>
-                                <div className="space-y-4 text-white/60 text-sm leading-relaxed">
-                                    <p><span className="text-white font-bold">1. UNE QUESTION :</span> Une situation est posée à tout le groupe.</p>
-                                    <p><span className="text-white font-bold">2. UN COUPABLE :</span> Vote pour l'un des joueurs présent dans la salle.</p>
-                                    <p><span className="text-white font-bold">3. LA RÉVÉLATION :</span> Les résultats s'affichent. Le plus voté est le grand gagnant (ou perdant) !</p>
+
+                                <div className="space-y-6">
+                                    {[
+                                        { t: "IDENTIFICATION", d: "Une situation est présentée par l'unité centrale." },
+                                        { t: "SELECTION", d: "Votez pour le profil correspondant le mieux à la question." },
+                                        { t: "SYNCHRONISATION", d: "Les résultats sont révélés et décident du sort du tour." }
+                                    ].map((rule, i) => (
+                                        <div key={i} className="flex gap-6 items-start">
+                                            <span className="text-[10px] font-black opacity-20 mt-1">0{i + 1}</span>
+                                            <div className="space-y-1">
+                                                <div className="text-xs font-black tracking-widest">{rule.t}</div>
+                                                <div className="text-sm text-white/40 leading-relaxed">{rule.d}</div>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
+
                                 <button
-                                    className="mt-8 w-full bg-white text-black py-4 rounded-2xl font-black uppercase text-xs"
+                                    className="btn-elite btn-solid w-full h-16"
                                     onClick={() => setShowRules(false)}
                                 >
-                                    J'AI COMPRIS
+                                    ACCÉPTER LES DONNÉES
                                 </button>
                             </div>
                         </motion.div>
@@ -324,53 +336,55 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                 )}
             </AnimatePresence>
 
-            {/* Winner Overlay */}
+            {/* Winner Overlay - Extreme Glitch */}
             <AnimatePresence>
                 {revealWinner && (
                     <motion.div
-                        className="fixed inset-0 z-[110] flex items-center justify-center p-8 backdrop-blur-2xl bg-black/60"
+                        className="fixed inset-0 z-[300] flex items-center justify-center p-8 bg-black/95 backdrop-blur-3xl"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                     >
                         <motion.div
-                            className="glass p-12 rounded-[50px] text-center relative max-w-lg w-full glow-magenta border-magenta-500/30"
-                            initial={{ scale: 0.8, rotate: -5 }}
-                            animate={{ scale: 1, rotate: 0 }}
-                            transition={{ type: "spring", bounce: 0.6 }}
+                            className="flex flex-col items-center text-center"
+                            initial={{ scale: 0.8 }}
+                            animate={{ scale: 1 }}
+                            transition={{ type: "spring", duration: 1 }}
                         >
-                            <div className="absolute -top-12 left-1/2 -translate-x-1/2 text-8xl drop-shadow-[0_0_30px_rgba(255,255,255,0.5)]">👑</div>
-                            <h3 className="title-massive text-4xl mb-6 opacity-40">MOST LIKELY</h3>
-                            <div className="text-6xl md:text-8xl font-black mb-4 uppercase tracking-tighter bg-gradient-to-b from-white to-white/40 bg-clip-text text-transparent">
+                            <motion.div
+                                className="text-indigo-500 mb-8"
+                                animate={{ scale: [1, 1.2, 1], rotate: [0, 5, -5, 0] }}
+                                transition={{ repeat: Infinity, duration: 4 }}
+                            >
+                                <Award size={80} strokeWidth={1} />
+                            </motion.div>
+                            <h3 className="text-indigo-400 text-xs font-black tracking-[1em] mb-4 uppercase">MOST LIKELY</h3>
+                            <h1 className="title-gigantic !text-7xl md:!text-[12rem] bg-gradient-to-b from-white to-white/20 bg-clip-text text-transparent mb-12">
                                 {revealWinner.nickname}
-                            </div>
-                            <div className="h-1 w-full bg-magenta-500/20 rounded-full mb-8 overflow-hidden">
-                                <motion.div
-                                    className="h-full bg-magenta-500"
-                                    initial={{ width: 0 }}
-                                    animate={{ width: "100%" }}
-                                    transition={{ duration: 1 }}
-                                />
-                            </div>
+                            </h1>
 
                             {isHost ? (
                                 <button
-                                    className="bg-white text-black w-full py-6 rounded-3xl font-black uppercase text-sm tracking-widest shadow-2xl"
+                                    className="btn-elite btn-solid !h-24 px-16 !text-lg !rounded-[50px] shadow-[0_0_80px_-20px_#4F46E5]"
                                     onClick={fetchNextQuestion}
                                 >
-                                    CONTINUER
+                                    EXPÉRIENCE SUIVANTE
                                 </button>
                             ) : (
-                                <div className="flex flex-col items-center gap-2">
-                                    <div className="flex gap-1">
-                                        <div className="w-2 h-2 bg-magenta-500 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
-                                        <div className="w-2 h-2 bg-magenta-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                                        <div className="w-2 h-2 bg-magenta-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                                <div className="flex flex-col items-center gap-4 opacity-40">
+                                    <div className="flex gap-2">
+                                        {[0.1, 0.2, 0.3].map(d => (
+                                            <motion.div key={d} className="w-1 h-8 bg-white" animate={{ height: [4, 32, 4] }} transition={{ repeat: Infinity, delay: d }} />
+                                        ))}
                                     </div>
-                                    <p className="text-[10px] uppercase font-black tracking-widest text-white/40">Waiting for Host</p>
+                                    <span className="text-[8px] font-black uppercase tracking-[0.5em]">Synchronisation de l'Host</span>
                                 </div>
                             )}
                         </motion.div>
+
+                        {/* Ambient Glitch backgrounds */}
+                        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[150px] animate-pulse" />
+                        <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-magenta-500/10 rounded-full blur-[150px] animate-pulse" style={{ animationDelay: '2s' }} />
                     </motion.div>
                 )}
             </AnimatePresence>

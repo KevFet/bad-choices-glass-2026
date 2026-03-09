@@ -1,22 +1,45 @@
-import './globals.css'
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
+
+const inter = Inter({
+  variable: "--font-geist",
+  subsets: ["latin"],
+});
 
 export const metadata: Metadata = {
-  title: 'Bad Choices - 2026',
-  description: 'Cyber-Glass Multiplayer Game',
-}
+  title: "Bad Choices | Future Edition",
+  description: "Multilateral Social Experiment - Next-Gen 2026",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Bad Choices",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#030014",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export default function RootLayout({
   children,
-}: {
-  children: React.ReactNode
-}) {
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    <html lang="fr">
-      <body>
-        <div className="mesh-bg" />
+    <html lang="fr" className={`${inter.variable} bg-background`}>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+      </head>
+      <body className="antialiased selection:bg-indigo-500/30">
+        <div className="deep-liquid" aria-hidden="true" />
+        <div className="noise-overlay" aria-hidden="true" />
         {children}
       </body>
     </html>
-  )
+  );
 }

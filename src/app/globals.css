@@ -1,64 +1,38 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
-  --background: #020617;
-  --mesh-1: #1E1B4B;
-  --mesh-2: #701A75;
-  --glass-bg: rgba(255, 255, 255, 0.05);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --neon-cyan: #06b6d4;
-  --neon-magenta: #d946ef;
+  --background: #030014;
+  --black: #050505;
+  --indigo: #4F46E5;
+  --magenta: #701A75;
   --font-geist: 'Geist', 'Inter', system-ui, sans-serif;
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+@layer base {
+  body {
+    @apply bg-background text-white font-geist overflow-x-hidden min-h-[100dvh] selection:bg-indigo/30;
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 
-body {
-  background-color: var(--background);
-  color: #fff;
-  font-family: var(--font-geist);
-  overflow-x: hidden;
-  min-height: 100vh;
-  position: relative;
-}
-
-/* Suble grain texture */
-body::before {
-  content: "";
+/* Deep Liquid Mesh Background */
+.deep-liquid {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-image: url("https://grainy-gradients.vercel.app/noise.svg");
-  opacity: 0.15;
-  pointer-events: none;
-  z-index: 10;
-  filter: contrast(150%) brightness(100%);
-}
-
-/* Mesh Gradient Background */
-.mesh-bg {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   z-index: -1;
-  background:
-    radial-gradient(at 0% 0%, var(--background) 0, transparent 50%),
-    radial-gradient(at 50% 0%, var(--mesh-1) 0, transparent 50%),
-    radial-gradient(at 100% 0%, var(--mesh-2) 0, transparent 50%),
-    radial-gradient(at 50% 50%, var(--mesh-1) 0, transparent 50%),
-    radial-gradient(at 0% 100%, var(--mesh-2) 0, transparent 50%),
-    radial-gradient(at 100% 100%, var(--mesh-1) 0, transparent 50%);
-  filter: blur(80px);
-  animation: mesh-move 20s infinite alternate;
+  background-color: var(--background);
+  background-image:
+    radial-gradient(at 10% 20%, var(--indigo) 0px, transparent 40%),
+    radial-gradient(at 80% 10%, var(--magenta) 0px, transparent 40%),
+    radial-gradient(at 30% 60%, var(--indigo) 0px, transparent 30%),
+    radial-gradient(at 90% 80%, var(--magenta) 0px, transparent 40%);
+  filter: blur(120px) saturate(1.5);
+  animation: liquid-drift 30s ease infinite alternate;
 }
 
-@keyframes mesh-move {
+@keyframes liquid-drift {
   0% {
     transform: scale(1) translate(0, 0);
   }
@@ -68,169 +42,107 @@ body::before {
   }
 
   100% {
-    transform: scale(1) translate(0, 0);
+    transform: scale(1.05) translate(1%, -1%);
   }
 }
 
-.glass {
-  background: var(--glass-bg);
-  backdrop-filter: blur(40px);
-  border: 0.5px solid var(--glass-border);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+/* 5% Noise overlay */
+.noise-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: url("https://grainy-gradients.vercel.app/noise.svg");
+  opacity: 0.05;
+  pointer-events: none;
+  mix-blend-mode: soft-light;
 }
 
-.glass-interactive {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.glass-interactive:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
-}
-
-.title-massive {
-  font-size: clamp(2.5rem, 8vw, 4.5rem);
-  font-weight: 900;
-  letter-spacing: -0.05em;
-  line-height: 0.9;
-  text-transform: uppercase;
-}
-
-.bento-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 16px;
-  width: 100%;
-}
-
-.bento-item {
-  aspect-ratio: 1;
-  border-radius: 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  cursor: pointer;
+/* Elite Glassmorphism System */
+.glass-elite {
+  @apply bg-white/3 backdrop-blur-[40px] rounded-3xl;
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 4px 30px rgba(0, 0, 0, 0.1),
+    inset 0 0 1px 1px rgba(255, 255, 255, 0.05);
   position: relative;
   overflow: hidden;
 }
 
-/* Neon Halo Effect */
-.neon-halo::after {
+/* Fiber-Thin Light Borders (Reflector) */
+.glass-elite::before {
   content: "";
   position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: linear-gradient(45deg, var(--neon-cyan), var(--neon-magenta));
-  z-index: -1;
-  border-radius: 26px;
-  filter: blur(8px);
-  opacity: 0;
-  transition: opacity 0.3s ease;
+  inset: 0;
+  padding: 0.5px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 40%, transparent 60%, rgba(255, 255, 255, 0.05) 100%);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  pointer-events: none;
 }
 
-.neon-halo.active::after {
+/* 2026 Elite Button */
+.btn-elite {
+  @apply flex items-center justify-center font-black uppercase tracking-widest text-[10px] py-4 px-8 rounded-2xl transition-all duration-300 relative overflow-hidden;
+  background: rgba(255, 255, 255, 0.05);
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.btn-elite::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--x, 50%) var(--y, 50%), rgba(255, 255, 255, 0.1) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.btn-elite:hover::after {
   opacity: 1;
 }
 
-/* Liquid progress bar */
-.liquid-progress {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  height: 0%;
-  width: 100%;
-  background: linear-gradient(to top, var(--neon-cyan), transparent);
-  transition: height 1.5s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 -10px 30px -5px var(--neon-cyan);
-  pointer-events: none;
+.btn-elite:hover {
+  @apply scale-[1.02] bg-white/10;
+  box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.05);
 }
 
-.liquid-progress::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 4px;
-  background: #fff;
-  box-shadow: 0 0 15px #fff;
-  opacity: 0.5;
+.btn-solid {
+  @apply bg-white text-black;
 }
 
-/* Glitch Lines for Winner */
-.glitch-lines {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: repeating-linear-gradient(transparent 0%,
-      rgba(217, 70, 239, 0.05) 0.5%,
-      transparent 1%);
-  animation: glitch-scroll 10s linear infinite;
-  pointer-events: none;
+.btn-solid:hover {
+  @apply bg-white/90 scale-[1.02];
 }
 
-@keyframes glitch-scroll {
-  0% {
-    transform: translate(0, 0);
-  }
-
-  100% {
-    transform: translate(0, 100%);
-  }
+/* Bento Grid System */
+.bento-12 {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 1rem;
 }
 
-/* Modal Overlay */
-.modal-overlay {
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(20px);
+/* Typography Elite */
+.title-gigantic {
+  @apply text-6xl md:text-9xl font-black tracking-tighter leading-[0.85] uppercase selection:text-indigo-400;
 }
 
-.glow-magenta {
-  box-shadow: 0 0 50px -10px var(--neon-magenta);
+/* HUD Overlay Elements */
+.hud-glass {
+  @apply glass-elite py-2 px-4 flex items-center gap-2;
+  border-radius: 9999px;
 }
 
-.glow-cyan {
-  box-shadow: 0 0 50px -10px var(--neon-cyan);
+/* Input Elite */
+.input-elite {
+  @apply bg-white/3 border-[0.5px] border-white/10 rounded-2xl p-4 w-full outline-none transition-all duration-300;
+  @apply focus:bg-white/5 focus:border-white/20 focus:scale-[1.01];
 }
 
-button {
-  background: #fff;
-  color: #000;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: transform 0.2s ease, background 0.2s ease;
-}
-
-button:active {
-  transform: scale(0.95);
-}
-
-button:hover {
-  background: #f0f0f0;
-}
-
-.input-glass {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 16px;
-  border-radius: 16px;
-  color: #fff;
-  outline: none;
-  font-size: 1rem;
-  width: 100%;
-}
-
-.input-glass:focus {
-  border-color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.08);
+/* Animations Framer-Power */
+.liquid-loader {
+  @apply absolute bottom-0 left-0 w-full bg-gradient-to-t from-indigo to-transparent transition-all;
+  box-shadow: 0 -20px 40px -10px theme('colors.indigo');
 }
