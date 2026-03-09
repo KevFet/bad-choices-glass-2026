@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Users, Info, ArrowRight } from 'lucide-react';
 
 interface LobbyProps {
     onJoin: (nickname: string, code: string) => void;
@@ -20,13 +19,13 @@ export default function Lobby({ onJoin, onCreate }: LobbyProps) {
             opacity: 1,
             scale: 1,
             y: 0,
-            transition: { duration: 1, ease: [0.16, 1, 0.3, 1] }
+            transition: { duration: 1, ease: "circOut" }
         },
         exit: { opacity: 0, scale: 1.02, y: -20, filter: "blur(20px)" }
     };
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen w-full px-6 py-12">
+        <div className="flex flex-col items-center justify-center min-h-screen w-full px-6 py-12 relative overflow-hidden">
 
             {/* Centered Magazine HUD */}
             <motion.div
@@ -35,8 +34,8 @@ export default function Lobby({ onJoin, onCreate }: LobbyProps) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 1.2, ease: "easeOut" }}
             >
-                <span className="block text-[10px] uppercase font-black tracking-[0.6em] opacity-30 mb-2">Social Experiment / 2026 Edition</span>
-                <h1 className="title-magazine text-center !text-8xl md:!text-[10rem]">
+                <span className="block text-[11px] uppercase font-black tracking-[0.7em] opacity-30 mb-3">Experimental Protocol / 2026-X</span>
+                <h1 className="title-magazine text-center !text-8xl md:!text-[12rem]">
                     BAD<br />CHOICES
                 </h1>
             </motion.div>
@@ -64,23 +63,23 @@ export default function Lobby({ onJoin, onCreate }: LobbyProps) {
                                 />
                             </div>
 
-                            <div className="flex flex-col gap-4 w-full items-center">
+                            <div className="flex flex-col gap-5 w-full items-center">
                                 <button
                                     onClick={() => nickname && setView('create')}
-                                    className={`btn-frosted w-full max-w-md h-20 group rounded-2xl flex items-center justify-center ${nickname ? 'border-white/20' : 'opacity-20 cursor-not-allowed'}`}
+                                    className={`btn-frosted w-full max-w-md h-20 group rounded-2xl flex items-center justify-center transition-all ${nickname ? 'opacity-100' : 'opacity-20 cursor-not-allowed'}`}
                                 >
-                                    <span className="font-black text-xs tracking-widest">CRÉER UNE SALLE</span>
+                                    <span className="font-black text-xs tracking-[0.4em]">CRÉER UNE SALLE</span>
                                 </button>
                                 <div className="flex items-center gap-4 w-full max-w-md opacity-20">
                                     <div className="h-px flex-1 bg-white" />
-                                    <span className="text-[10px] font-black">OU</span>
+                                    <span className="text-[10px] font-black">OR</span>
                                     <div className="h-px flex-1 bg-white" />
                                 </div>
                                 <button
                                     onClick={() => nickname && setView('join')}
-                                    className={`btn-frosted w-full max-w-md h-20 group rounded-2xl flex items-center justify-center ${nickname ? 'border-white/20' : 'opacity-20 cursor-not-allowed'}`}
+                                    className={`btn-frosted w-full max-w-md h-20 group rounded-2xl flex items-center justify-center transition-all border-dashed ${nickname ? 'opacity-100' : 'opacity-20 cursor-not-allowed'}`}
                                 >
-                                    <span className="font-black text-xs tracking-widest underline underline-offset-8 decoration-white/20 decoration-2">REJOINDRE AVEC UN CODE</span>
+                                    <span className="font-black text-xs tracking-[0.4em]">REJOINDRE</span>
                                 </button>
                             </div>
                         </div>
@@ -97,7 +96,7 @@ export default function Lobby({ onJoin, onCreate }: LobbyProps) {
                         className="w-full max-w-2xl glass-bento p-16 flex flex-col items-center space-y-12 z-20"
                     >
                         <div className="text-center space-y-3">
-                            <h2 className="title-magazine !text-6xl italic">Code d'accès</h2>
+                            <h2 className="title-magazine !text-6xl italic">Accès Salle</h2>
                             <p className="text-white/20 text-[10px] font-black uppercase tracking-[0.5em]">Synchronisation Requise</p>
                         </div>
 
@@ -118,7 +117,12 @@ export default function Lobby({ onJoin, onCreate }: LobbyProps) {
                             >
                                 SYNCHRONISER
                             </button>
-                            <button onClick={() => setView('root')} className="text-[10px] font-black uppercase opacity-40 hover:opacity-100 tracking-[0.3em] mt-4">RETOUR</button>
+                            <button
+                                onClick={() => setView('root')}
+                                className="text-[10px] font-black uppercase opacity-40 hover:opacity-100 tracking-[0.3em] mt-8"
+                            >
+                                RETOUR
+                            </button>
                         </div>
                     </motion.div>
                 )}
@@ -133,12 +137,22 @@ export default function Lobby({ onJoin, onCreate }: LobbyProps) {
                         className="w-full max-w-2xl glass-bento p-16 text-center space-y-12 z-20"
                     >
                         <div className="space-y-4">
-                            <h2 className="title-magazine !text-6xl italic">Prêt ?</h2>
-                            <p className="text-white/40 text-sm leading-relaxed max-w-md mx-auto font-medium">Session pour le sujet <span className="text-white font-black">{nickname}</span>.</p>
+                            <h2 className="title-magazine !text-6xl italic">Session</h2>
+                            <p className="text-white/40 text-sm leading-relaxed max-w-md mx-auto font-medium">Initialisation du protocole pour <span className="text-white font-black">{nickname}</span>.</p>
                         </div>
                         <div className="flex flex-col items-center gap-4">
-                            <button onClick={() => onCreate(nickname)} className="btn-frosted bg-white text-black h-20 w-full max-w-md rounded-[40px] shadow-[0_30px_60px_-15px_rgba(255,255,255,0.4)]">INITIALISER</button>
-                            <button onClick={() => setView('root')} className="text-[10px] font-black uppercase opacity-40 tracking-[0.3em] mt-4">ANNULER</button>
+                            <button
+                                onClick={() => onCreate(nickname)}
+                                className="btn-frosted bg-white text-black h-20 w-full max-w-md rounded-[40px] shadow-[0_30px_60px_-15px_rgba(255,255,255,0.4)]"
+                            >
+                                INITIALISER
+                            </button>
+                            <button
+                                onClick={() => setView('root')}
+                                className="text-[10px] font-black uppercase opacity-40 tracking-[0.3em] mt-8"
+                            >
+                                ANNULER
+                            </button>
                         </div>
                     </motion.div>
                 )}

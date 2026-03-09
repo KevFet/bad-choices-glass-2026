@@ -117,7 +117,7 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
     };
 
     return (
-        <div className="flex flex-col items-center min-h-[100dvh] pt-40 pb-32 px-4 max-w-7xl mx-auto w-full overflow-x-hidden">
+        <div className="flex flex-col items-center min-h-[100dvh] pt-44 pb-32 px-4 max-w-7xl mx-auto w-full overflow-x-hidden relative">
 
             {/* Magazine HUD */}
             <div className="fixed top-10 left-1/2 -translate-x-1/2 flex items-center justify-between w-full max-w-6xl px-10 z-[100]">
@@ -129,7 +129,6 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                     <Users size={16} className="text-white/40" />
                     <span className="text-[10px] font-black uppercase tracking-[0.4em] opacity-30">Room Code</span>
                     <span className="text-lg font-black tracking-widest">{roomCode}</span>
-                    {copied && <Check size={14} className="text-green-500 animate-pulse" />}
                 </motion.div>
 
                 <div className="flex gap-4">
@@ -154,16 +153,12 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
             <AnimatePresence mode="wait">
                 <motion.div
                     key={currentQuestion?.id}
-                    className="w-full max-w-4xl glass-bento p-16 md:p-24 text-center mb-16 relative overflow-hidden"
+                    className="w-full max-w-5xl glass-bento p-16 md:p-24 text-center mb-16 relative overflow-hidden"
                     initial={{ opacity: 0, scale: 0.95, y: 30 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 1.05, filter: "blur(20px)" }}
-                    transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+                    transition={{ duration: 1, ease: "circOut" }}
                 >
-                    <div className="absolute top-10 left-10 opacity-10 flex gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-white" />
-                        <div className="w-6 h-1.5 rounded-full bg-white" />
-                    </div>
                     <motion.h2 className="title-magazine !text-5xl md:!text-8xl italic">
                         {currentQuestion?.[lang] || '...'}
                     </motion.h2>
@@ -175,7 +170,7 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
 
             {/* Players Bento Stack - Centered and Proportioned */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 w-full max-w-5xl">
-                {players.map((player, idx) => {
+                {players.map((player) => {
                     const voteCount = allVotes[player.id] || 0;
                     const percentage = players.length > 0 ? (voteCount / players.length) * 100 : 0;
                     const isSelected = selectedPlayerId === player.id;
@@ -185,26 +180,23 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                             layout
                             key={player.id}
                             onClick={() => handleVote(player.id)}
-                            className={`glass-bento p-8 flex flex-col items-center justify-center gap-4 cursor-pointer relative overflow-hidden group hover:scale-105 transition-all duration-500 ${isSelected ? 'border-indigo-500/50 bg-indigo-500/5 glow-glow' : ''}`}
-                            whileTap={{ scale: 0.95 }}
+                            className={`glass-bento p-8 flex flex-col items-center justify-center gap-4 cursor-pointer relative overflow-hidden group hover:scale-105 transition-all duration-500 ${isSelected ? 'border-indigo-500/50 bg-indigo-500/5' : ''}`}
                         >
                             <AnimatePresence>
                                 {showResults && (
                                     <motion.div
-                                        className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-indigo-500/20 to-transparent transition-all"
+                                        className="absolute bottom-0 left-0 w-full bg-indigo-500/10"
                                         initial={{ height: 0 }}
                                         animate={{ height: `${percentage}%` }}
-                                        transition={{ duration: 2, ease: [0.16, 1, 0.3, 1] }}
+                                        transition={{ duration: 1.5, ease: "circOut" }}
                                     />
                                 )}
                             </AnimatePresence>
 
-                            <div className="relative z-10 w-20 h-20 md:w-28 md:h-28 rounded-full flex items-center justify-center glass-card border-white/20 group-hover:border-white/40 transition-all font-black text-2xl md:text-4xl shadow-2xl">
+                            <div className="relative z-10 w-20 h-20 md:w-28 md:h-28 rounded-full flex items-center justify-center glass-card border-white/20 font-black text-2xl md:text-4xl">
                                 {player.nickname?.charAt(0).toUpperCase()}
                                 {showResults && (
-                                    <div className="absolute -bottom-2 glass-card px-3 py-1 text-[10px] font-black italic">
-                                        {Math.round(percentage)}%
-                                    </div>
+                                    <div className="absolute -bottom-2 glass-card px-3 py-1 text-[10px] font-black italic">{Math.round(percentage)}%</div>
                                 )}
                             </div>
                             <span className="relative z-10 text-[10px] md:text-xs font-black uppercase tracking-[0.4em] opacity-40 group-hover:opacity-100 transition-opacity">
@@ -222,22 +214,12 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                         className="fixed bottom-12 left-1/2 -translate-x-1/2 w-full max-w-md px-6 z-[110]"
                         initial={{ y: 50, opacity: 0 }}
                         animate={{ y: 0, opacity: 1 }}
-                        transition={{ delay: 1 }}
+                        transition={{ delay: 0.5, ease: "circOut" }}
                     >
                         {!showResults ? (
-                            <button
-                                onClick={triggerResults}
-                                className="btn-frosted !h-24 !bg-white !text-black shadow-[0_40px_80px_-20px_rgba(255,255,255,0.4)] !rounded-[50px] font-black text-xs tracking-[0.5em]"
-                            >
-                                DÉCRYPTER LES VOTES
-                            </button>
+                            <button onClick={triggerResults} className="btn-frosted !h-24 !bg-white !text-black shadow-[0_40px_80px_-20px_rgba(255,255,255,0.4)] !rounded-[50px] font-black text-xs tracking-[0.5em] w-full">DÉCRYPTER LES VOTES</button>
                         ) : (
-                            <button
-                                onClick={fetchNextQuestion}
-                                className="btn-frosted !h-24 !bg-white !text-black shadow-[0_40px_80px_-20px_rgba(255,255,255,0.4)] !rounded-[50px] font-black text-xs tracking-[0.5em]"
-                            >
-                                EXPÉRIENCE SUIVANTE
-                            </button>
+                            <button onClick={fetchNextQuestion} className="btn-frosted !h-24 !bg-white !text-black shadow-[0_40px_80px_-20px_rgba(255,255,255,0.4)] !rounded-[50px] font-black text-xs tracking-[0.5em] w-full">EXPÉRIENCE SUIVANTE</button>
                         )}
                     </motion.div>
                 )}
@@ -261,14 +243,14 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                                 <X size={24} />
                             </button>
                             <h3 className="title-magazine !text-7xl mb-12 italic">Protocole</h3>
-                            <div className="space-y-10 w-full max-w-md">
+                            <div className="space-y-10 w-full max-w-md text-left">
                                 {[
                                     { t: "STIMULUS", d: "Analyser la question posée par le système central." },
                                     { t: "SÉLECTION", d: "Désigner le sujet le plus probable selon vos biais cognitifs." },
                                     { t: "RÉSULTAT", d: "Synthétiser l'inconscient collectif du groupe." }
                                 ].map((step, i) => (
                                     <div key={i} className="flex gap-10 items-start group">
-                                        <span className="text-[10px] font-black opacity-10 mt-1 italic group-hover:opacity-100 transition-opacity duration-500">0{i + 1}</span>
+                                        <span className="text-[10px] font-black opacity-10 mt-1 italic group-hover:opacity-100">0{i + 1}</span>
                                         <div className="space-y-1">
                                             <div className="text-xs font-black tracking-[0.4em] mb-1">{step.t}</div>
                                             <p className="text-sm text-white/30 leading-relaxed font-medium">{step.d}</p>
@@ -276,18 +258,13 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                                     </div>
                                 ))}
                             </div>
-                            <button
-                                onClick={() => setShowRules(false)}
-                                className="btn-frosted !bg-white !text-black mt-16 h-20 !rounded-[40px]"
-                            >
-                                COMPRIS
-                            </button>
+                            <button onClick={() => setShowRules(false)} className="btn-frosted !bg-white !text-black mt-16 h-20 !rounded-[40px] w-full">COMPRIS</button>
                         </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* Winner Reveal - Glitch Magazine Style */}
+            {/* Winner Reveal */}
             <AnimatePresence>
                 {revealWinner && (
                     <motion.div
@@ -296,24 +273,12 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                         animate={{ opacity: 1 }}
                     >
                         <div className="flex flex-col items-center text-center">
-                            <motion.div
-                                initial={{ opacity: 0, y: 30 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.5 }}
-                                className="space-y-4"
-                            >
+                            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, ease: "circOut" }} className="space-y-4">
                                 <span className="text-xs font-black uppercase tracking-[1em] block opacity-30">Le Vainqueur Désigné</span>
-                                <h1 className="title-magazine !text-[12vw] leading-none mb-10 selection:bg-white selection:text-black">
-                                    {revealWinner.nickname}
-                                </h1>
+                                <h1 className="title-magazine !text-[12vw] leading-none mb-10 selection:bg-white selection:text-black">{revealWinner.nickname}</h1>
                             </motion.div>
                             {isHost && (
-                                <button
-                                    onClick={fetchNextQuestion}
-                                    className="btn-frosted !bg-white !text-black h-24 px-20 !rounded-[60px]"
-                                >
-                                    CONTINUER
-                                </button>
+                                <button onClick={fetchNextQuestion} className="btn-frosted !bg-white !text-black h-24 px-20 !rounded-[60px]">CONTINUER</button>
                             )}
                         </div>
                     </motion.div>
