@@ -13,46 +13,39 @@ export default function Home() {
   const [status, setStatus] = useState<'LOBBY' | 'GAME'>(typeof window !== 'undefined' && localStorage.getItem('currentRoom') ? 'GAME' : 'LOBBY');
 
   useEffect(() => {
-    if (!roomCode) return;
+    if (!roomCode || !myId) return;
 
-    // Check if the room actually exists
-    const verifyRoom = async () => {
-      const { data } = await supabase.from('bad_choices_rooms').select('code').eq('code', roomCode).single();
-      if (!data) {
-        handleLeave();
-      }
-    };
-    verifyRoom();
+    const currentNickname = localStorage.getItem('nickname') || 'Anonyme';
 
+    // 1. Verify Room and Presence
     const channel = supabase.channel(`room:${roomCode}`, {
-      config: {
-        presence: {
-          key: myId!,
-        },
-      },
+      config: { presence: { key: myId } },
     });
 
     channel
       .on('presence', { event: 'sync' }, () => {
-        const newState = channel.presenceState();
-        const activePlayers = Object.values(newState).map((v: any) => v[0]);
-        setPlayers(activePlayers);
+        const state = channel.presenceState();
+        const active = Object.values(state).flat().map((p: any) => p);
+        setPlayers(active);
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
+          // Verify room exists before tracking
+          const { data: room } = await supabase.from('bad_choices_rooms').select('code').eq('code', roomCode).single();
+          if (!room) {
+            handleLeave();
+            return;
+          }
           await channel.track({
             id: myId,
-            nickname: localStorage.getItem('nickname') || 'Anonyme',
+            nickname: currentNickname,
             is_host: isHost,
-            joined_at: new Date().toISOString(),
           });
         }
       });
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [roomCode, myId]);
+    return () => { supabase.removeChannel(channel); };
+  }, [roomCode, myId, isHost]);
 
   const handleCreate = async (nickname: string) => {
     const code = Math.random().toString(36).substring(2, 6).toUpperCase();

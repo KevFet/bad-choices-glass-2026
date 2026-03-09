@@ -44,6 +44,31 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
     const [voterIds, setVoterIds] = useState<string[]>([]);
     const [roomStatus, setRoomStatus] = useState<'LOBBY' | 'PLAYING'>('LOBBY');
 
+    // 1. Core Sync (Initial State)
+    useEffect(() => {
+        const fetchInitialState = async () => {
+            const { data: room } = await supabase.from('bad_choices_rooms')
+                .select('status, current_question_id')
+                .eq('code', roomCode)
+                .single();
+
+            if (room) {
+                setRoomStatus(room.status as any);
+                if (room.current_question_id) {
+                    const { data: q } = await supabase.from('bad_choices_questions')
+                        .select('*').eq('id', room.current_question_id).single();
+                    if (q) setCurrentQuestion(q);
+
+                    const { data: v } = await supabase.from('bad_choices_votes')
+                        .select('voter_id').match({ room_code: roomCode, question_id: room.current_question_id });
+                    if (v) setVoterIds(v.map(item => item.voter_id));
+                }
+            }
+        };
+        fetchInitialState();
+    }, [roomCode]);
+
+    // 2. Real-time Logic
     useEffect(() => {
         const channel = supabase.channel(`room:${roomCode}`)
             .on('broadcast', { event: 'next_question' }, (payload) => {
@@ -53,88 +78,48 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                 setSelectedPlayerId(null);
                 setRevealWinner(null);
                 setAllVotes({});
+                setVoterIds([]);
             })
-            .on('broadcast', { event: 'show_results' }, (payload) => {
-                setAllVotes(payload.votes);
+            .on('broadcast', { event: 'show_results' }, ({ votes }) => {
+                setAllVotes(votes);
                 setShowResults(true);
-                const winnerId = Object.keys(payload.votes).reduce((a, b) =>
-                    (payload.votes[a] || 0) > (payload.votes[b] || 0) ? a : b, ''
-                );
+                const winnerId = Object.keys(votes).reduce((a, b) => (votes[a] || 0) > (votes[b] || 0) ? a : b, '');
                 const winner = players.find(p => p.id === winnerId);
                 setTimeout(() => setRevealWinner(winner || null), 2000);
             })
-            .subscribe(async (status) => {
-                if (status === 'SUBSCRIBED') {
-                    const { data: room } = await supabase.from('bad_choices_rooms')
-                        .select('status, current_question_id')
-                        .eq('code', roomCode)
-                        .single();
+            .subscribe();
 
-                    if (room) {
-                        setRoomStatus(room.status as any);
-                        if (room.current_question_id) {
-                            const { data: q } = await supabase.from('bad_choices_questions')
-                                .select('*')
-                                .eq('id', room.current_question_id)
-                                .single();
-                            if (q) setCurrentQuestion(q);
-
-                            // Also sync existing votes for this question
-                            const { data: existingVotes } = await supabase.from('bad_choices_votes')
-                                .select('voter_id')
-                                .match({ room_code: roomCode, question_id: room.current_question_id });
-                            if (existingVotes) setVoterIds(existingVotes.map(v => v.voter_id));
-                        }
-                    }
-                }
-            });
-
-        // 3. Database Vote Listener (Realtime)
-        const voteChannel = supabase.channel(`votes:${roomCode}`)
-            .on('postgres_changes', {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'bad_choices_votes',
-                filter: `room_code=eq.${roomCode}`
-            }, (payload) => {
-                const newVoterId = payload.new.voter_id;
-                setVoterIds(prev => prev.includes(newVoterId) ? prev : [...prev, newVoterId]);
+        const dbChannel = supabase.channel(`db_sync:${roomCode}`)
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bad_choices_rooms', filter: `code=eq.${roomCode}` }, (p) => {
+                setRoomStatus(p.new.status);
             })
-            .on('postgres_changes', {
-                event: 'UPDATE',
-                schema: 'public',
-                table: 'bad_choices_rooms',
-                filter: `code=eq.${roomCode}`
-            }, (payload) => {
-                setRoomStatus(payload.new.status);
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bad_choices_votes', filter: `room_code=eq.${roomCode}` }, (p) => {
+                setVoterIds(prev => prev.includes(p.new.voter_id) ? prev : [...prev, p.new.voter_id]);
             })
             .subscribe();
 
         channelRef.current = channel;
 
-        // Removed automatic fetchNextQuestion on mount - wait for startGame click
-
         return () => {
             supabase.removeChannel(channel);
-            supabase.removeChannel(voteChannel);
+            supabase.removeChannel(dbChannel);
         };
-    }, [roomCode, isHost, players.length]);
+    }, [roomCode, players.length]);
 
-    // Automatic results trigger for host - only in PLAYING state
+    // 3. Host Logic: Auto-trigger results
     useEffect(() => {
         if (isHost && roomStatus === 'PLAYING' && !showResults && currentQuestion && voterIds.length >= players.length && players.length > 0) {
-            // Small delay for fluidity
             const timer = setTimeout(() => triggerResults(), 800);
             return () => clearTimeout(timer);
         }
-    }, [voterIds.length, players.length, isHost, showResults, currentQuestion]);
+    }, [voterIds.length, players.length, isHost, showResults, currentQuestion, roomStatus]);
 
     const fetchNextQuestion = async () => {
         const { data: questions } = await supabase.from('bad_choices_questions').select('*');
         if (questions && questions.length > 0) {
             const randomQ = questions[Math.floor(Math.random() * questions.length)];
             setCurrentQuestion(randomQ);
-            setVoterIds([]); // Local reset
+            setVoterIds([]);
 
             if (channelRef.current) {
                 await channelRef.current.send({
@@ -143,7 +128,6 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                     question: randomQ,
                 });
             }
-
             await supabase.from('bad_choices_rooms').update({ current_question_id: randomQ.id }).eq('code', roomCode);
         }
     };
@@ -154,6 +138,7 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
         if (questions && questions.length > 0) {
             const randomQ = questions[Math.floor(Math.random() * questions.length)];
             setCurrentQuestion(randomQ);
+            setVoterIds([]);
 
             await supabase.from('bad_choices_rooms').update({
                 status: 'PLAYING',
