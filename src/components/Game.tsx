@@ -42,6 +42,7 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
     const [lang, setLang] = useState<Lang>('fr');
     const [showRules, setShowRules] = useState(false);
     const [voterIds, setVoterIds] = useState<string[]>([]);
+    const [roomStatus, setRoomStatus] = useState<'LOBBY' | 'PLAYING'>('LOBBY');
 
     useEffect(() => {
         const channel = supabase.channel(`room:${roomCode}`)
@@ -64,24 +65,26 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
             })
             .subscribe(async (status) => {
                 if (status === 'SUBSCRIBED') {
-                    // Sync initial question
                     const { data: room } = await supabase.from('bad_choices_rooms')
-                        .select('current_question_id')
+                        .select('status, current_question_id')
                         .eq('code', roomCode)
                         .single();
 
-                    if (room?.current_question_id) {
-                        const { data: q } = await supabase.from('bad_choices_questions')
-                            .select('*')
-                            .eq('id', room.current_question_id)
-                            .single();
-                        if (q) setCurrentQuestion(q);
+                    if (room) {
+                        setRoomStatus(room.status as any);
+                        if (room.current_question_id) {
+                            const { data: q } = await supabase.from('bad_choices_questions')
+                                .select('*')
+                                .eq('id', room.current_question_id)
+                                .single();
+                            if (q) setCurrentQuestion(q);
 
-                        // Also sync existing votes for this question
-                        const { data: existingVotes } = await supabase.from('bad_choices_votes')
-                            .select('voter_id')
-                            .match({ room_code: roomCode, question_id: room.current_question_id });
-                        if (existingVotes) setVoterIds(existingVotes.map(v => v.voter_id));
+                            // Also sync existing votes for this question
+                            const { data: existingVotes } = await supabase.from('bad_choices_votes')
+                                .select('voter_id')
+                                .match({ room_code: roomCode, question_id: room.current_question_id });
+                            if (existingVotes) setVoterIds(existingVotes.map(v => v.voter_id));
+                        }
                     }
                 }
             });
@@ -97,6 +100,14 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                 const newVoterId = payload.new.voter_id;
                 setVoterIds(prev => prev.includes(newVoterId) ? prev : [...prev, newVoterId]);
             })
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'bad_choices_rooms',
+                filter: `code=eq.${roomCode}`
+            }, (payload) => {
+                setRoomStatus(payload.new.status);
+            })
             .subscribe();
 
         channelRef.current = channel;
@@ -107,7 +118,7 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
             supabase.removeChannel(channel);
             supabase.removeChannel(voteChannel);
         };
-    }, [roomCode, isHost, players.length]); // Re-sync if player count changes
+    }, [roomCode, isHost, players.length]);
 
     // Automatic results trigger for host
     useEffect(() => {
@@ -134,6 +145,28 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
             }
 
             await supabase.from('bad_choices_rooms').update({ current_question_id: randomQ.id }).eq('code', roomCode);
+        }
+    };
+
+    const startGame = async () => {
+        if (!isHost) return;
+        const { data: questions } = await supabase.from('bad_choices_questions').select('*');
+        if (questions && questions.length > 0) {
+            const randomQ = questions[Math.floor(Math.random() * questions.length)];
+            setCurrentQuestion(randomQ);
+
+            await supabase.from('bad_choices_rooms').update({
+                status: 'PLAYING',
+                current_question_id: randomQ.id
+            }).eq('code', roomCode);
+
+            if (channelRef.current) {
+                await channelRef.current.send({
+                    type: 'broadcast',
+                    event: 'next_question',
+                    question: randomQ,
+                });
+            }
         }
     };
 
@@ -199,76 +232,125 @@ export default function Game({ roomCode, myId, players, isHost, onLeave }: GameP
                 </div>
             </div>
 
-            {/* Main Question - Centered Magazine Box */}
+            {/* Main Content Area */}
             <AnimatePresence mode="wait">
-                <motion.div
-                    key={currentQuestion?.id}
-                    className="w-full max-w-5xl glass-bento p-16 md:p-24 text-center mb-16 relative overflow-hidden"
-                    initial={{ opacity: 0, scale: 0.95, y: 30 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 1.05, filter: "blur(20px)" }}
-                    transition={{ duration: 1 }}
-                >
-                    <motion.h2 className="title-magazine !text-5xl md:!text-8xl italic">
-                        {currentQuestion?.[lang] || '...'}
-                    </motion.h2>
-                    <div className="absolute bottom-10 right-10 opacity-20">
-                        <span className="text-[10px] uppercase font-black tracking-[0.4em]">Protocol #026</span>
-                    </div>
-                </motion.div>
+                {roomStatus === 'LOBBY' ? (
+                    <motion.div
+                        key="lobby-view"
+                        className="w-full max-w-5xl flex flex-col items-center gap-16"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                    >
+                        <div className="text-center space-y-6">
+                            <h2 className="title-magazine !text-7xl md:!text-[10rem] italic opacity-10 leading-none">Salle d'attente</h2>
+                            <p className="text-[10px] font-black uppercase tracking-[0.8em] opacity-40">Synchronisation des Sujets ({players.length})</p>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 w-full">
+                            {players.map((player) => (
+                                <motion.div
+                                    key={player.id}
+                                    layout
+                                    className="glass-bento p-8 flex flex-col items-center gap-4 group"
+                                >
+                                    <div className="relative w-24 h-24 rounded-full flex items-center justify-center glass-card border-white/20 font-black text-3xl">
+                                        {player.nickname?.charAt(0).toUpperCase()}
+                                    </div>
+                                    <span className="text-[10px] font-black uppercase tracking-[0.4em] opacity-40 group-hover:opacity-100 transition-opacity">
+                                        {player.nickname}
+                                    </span>
+                                </motion.div>
+                            ))}
+                        </div>
+
+                        {isHost && (
+                            <button
+                                onClick={startGame}
+                                className="btn-frosted !h-24 !bg-white !text-black shadow-[0_40px_80px_-20px_rgba(255,255,255,0.4)] !rounded-[50px] font-black text-xs tracking-[0.5em] w-full max-w-md"
+                            >
+                                LANCER LE PROTOCOLE
+                            </button>
+                        )}
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        key="game-view"
+                        className="w-full flex flex-col items-center"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                    >
+                        {/* Main Question - Centered Magazine Box */}
+                        <motion.div
+                            key={currentQuestion?.id}
+                            className="w-full max-w-5xl glass-bento p-16 md:p-24 text-center mb-16 relative overflow-hidden"
+                            initial={{ opacity: 0, scale: 0.95, y: 30 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 1.05, filter: "blur(20px)" }}
+                            transition={{ duration: 1 }}
+                        >
+                            <motion.h2 className="title-magazine !text-5xl md:!text-8xl italic">
+                                {currentQuestion?.[lang] || '...'}
+                            </motion.h2>
+                            <div className="absolute bottom-10 right-10 opacity-20">
+                                <span className="text-[10px] uppercase font-black tracking-[0.4em]">Protocol #026</span>
+                            </div>
+                        </motion.div>
+
+                        {/* Players Bento Stack */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 w-full max-w-5xl">
+                            {players.map((player) => {
+                                const voteCount = allVotes[player.id] || 0;
+                                const percentage = players.length > 0 ? (voteCount / players.length) * 100 : 0;
+                                const isSelected = selectedPlayerId === player.id;
+                                const hasVoted = voterIds.includes(player.id);
+
+                                return (
+                                    <motion.div
+                                        layout
+                                        key={player.id}
+                                        onClick={() => handleVote(player.id)}
+                                        className={`glass-bento p-8 flex flex-col items-center justify-center gap-4 cursor-pointer relative overflow-hidden group hover:scale-105 transition-all duration-500 ${isSelected ? 'border-white/50 bg-white/5' : ''}`}
+                                    >
+                                        <AnimatePresence>
+                                            {showResults && (
+                                                <motion.div
+                                                    className="absolute bottom-0 left-0 w-full bg-white/10"
+                                                    initial={{ height: 0 }}
+                                                    animate={{ height: `${percentage}%` }}
+                                                    transition={{ duration: 1.5 }}
+                                                />
+                                            )}
+                                        </AnimatePresence>
+
+                                        <div className="relative z-10 w-20 h-20 md:w-28 md:h-28 rounded-full flex items-center justify-center glass-card border-white/20 font-black text-2xl md:text-4xl">
+                                            {player.nickname?.charAt(0).toUpperCase()}
+                                            {showResults && (
+                                                <div className="absolute -bottom-2 glass-card px-3 py-1 text-[10px] font-black italic">{Math.round(percentage)}%</div>
+                                            )}
+                                            {!showResults && hasVoted && (
+                                                <motion.div
+                                                    initial={{ scale: 0 }}
+                                                    animate={{ scale: 1 }}
+                                                    className="absolute -top-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center border-2 border-black"
+                                                >
+                                                    <div className="w-2 h-2 bg-black rounded-full" />
+                                                </motion.div>
+                                            )}
+                                        </div>
+                                        <span className="relative z-10 text-[10px] md:text-xs font-black uppercase tracking-[0.4em] opacity-40 group-hover:opacity-100">
+                                            {player.nickname}
+                                        </span>
+                                    </motion.div>
+                                );
+                            })}
+                        </div>
+                    </motion.div>
+                )}
             </AnimatePresence>
 
-            {/* Players Bento Stack */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 w-full max-w-5xl">
-                {players.map((player) => {
-                    const voteCount = allVotes[player.id] || 0;
-                    const percentage = players.length > 0 ? (voteCount / players.length) * 100 : 0;
-                    const isSelected = selectedPlayerId === player.id;
-                    const hasVoted = voterIds.includes(player.id);
-
-                    return (
-                        <motion.div
-                            layout
-                            key={player.id}
-                            onClick={() => handleVote(player.id)}
-                            className={`glass-bento p-8 flex flex-col items-center justify-center gap-4 cursor-pointer relative overflow-hidden group hover:scale-105 transition-all duration-500 ${isSelected ? 'border-white/50 bg-white/5' : ''}`}
-                        >
-                            <AnimatePresence>
-                                {showResults && (
-                                    <motion.div
-                                        className="absolute bottom-0 left-0 w-full bg-white/10"
-                                        initial={{ height: 0 }}
-                                        animate={{ height: `${percentage}%` }}
-                                        transition={{ duration: 1.5 }}
-                                    />
-                                )}
-                            </AnimatePresence>
-
-                            <div className="relative z-10 w-20 h-20 md:w-28 md:h-28 rounded-full flex items-center justify-center glass-card border-white/20 font-black text-2xl md:text-4xl">
-                                {player.nickname?.charAt(0).toUpperCase()}
-                                {showResults && (
-                                    <div className="absolute -bottom-2 glass-card px-3 py-1 text-[10px] font-black italic">{Math.round(percentage)}%</div>
-                                )}
-                                {!showResults && hasVoted && (
-                                    <motion.div
-                                        initial={{ scale: 0 }}
-                                        animate={{ scale: 1 }}
-                                        className="absolute -top-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center border-2 border-black"
-                                    >
-                                        <div className="w-2 h-2 bg-black rounded-full" />
-                                    </motion.div>
-                                )}
-                            </div>
-                            <span className="relative z-10 text-[10px] md:text-xs font-black uppercase tracking-[0.4em] opacity-40 group-hover:opacity-100">
-                                {player.nickname}
-                            </span>
-                        </motion.div>
-                    );
-                })}
-            </div>
-
             <AnimatePresence>
-                {isHost && (
+                {isHost && roomStatus === 'PLAYING' && (
                     <motion.div
                         className="fixed bottom-12 left-1/2 -translate-x-1/2 w-full max-w-md px-6 z-[110]"
                         initial={{ y: 50, opacity: 0 }}
